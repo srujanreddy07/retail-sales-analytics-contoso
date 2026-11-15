@@ -1,0 +1,186 @@
+// PROPOSED, UNIMPLEMENTED AND UNTESTED. Not applied to the original report and never run or compiled.
+// Written as suggested corrections; validate in Power BI Desktop on a copy before any use.
+// This file is a catalog of individual Desktop measure definitions, not one
+// executable DAX query. Paste one Name = Expression block per measure.
+// No model evaluation or Desktop compilation has been performed here.
+
+// ============================================================================
+// A. READY-TO-APPLY RENAMES: unchanged business arithmetic and filter behavior.
+// Rename existing objects in Desktop to preserve their identities/bindings.
+// These blocks show the final expressions AFTER the listed dependency renames.
+// Rename the row-count/store-count helpers first, then their dependents.
+// Keep Total Sales, Online Sales and Total Online Customers unchanged.
+// BLANK handling is intentionally unchanged. DISTINCTCOUNT includes BLANK;
+// purchasing-customer/store descriptions do not establish key completeness.
+// ============================================================================
+
+// Home table: FactSales. Rename existing [Total Transactions]. Format: 0.
+FactSales Row Count =
+COUNTROWS(FactSales)
+
+// Home table: FactOnlineSales. Rename existing [Online Transactions]. Format: 0.
+Online Fact Row Count =
+COUNTROWS(FactOnlineSales)
+
+// Home table: FactSales. Rename existing [Avg Order Value].
+// Revenue per stored FactSales row; no claim of order or transaction grain.
+Sales per FactSales Row =
+DIVIDE([Total Sales], [FactSales Row Count])
+
+// Home table: FactOnlineSales. Rename existing [Avg Order Online Value].
+Online Sales per Fact Row =
+DIVIDE([Online Sales], COUNTROWS(FactOnlineSales))
+
+// Home table: FactOnlineSales. Rename existing [Avg Customer LTV].
+// Revenue per distinct CustomerKey represented in the filtered online facts.
+// Retains date/product/store/age filters; neither lifetime nor predicted value.
+Online Sales per Purchasing Customer =
+DIVIDE([Online Sales], [Total Online Customers])
+
+// Home table: FactOnlineSales. Rename existing [Avg Orders per Customer].
+Online Fact Rows per Purchasing Customer =
+DIVIDE(COUNTROWS(FactOnlineSales), [Total Online Customers])
+
+// Home table: FactSales. Rename existing [Online %].
+// A ratio of two fact-table revenue measures, NOT a combined-sales share.
+// Values can exceed 1. Do not label FactSales as exclusively in-store/offline:
+// channelKey remains present and fact overlap has not been established.
+Online Sales to FactSales Sales Ratio =
+DIVIDE(FactOnlineSales[Online Sales], [Total Sales])
+
+// Home table: FactSales. Rename existing [Store Count]. Format: 0.
+// Distinct StoreKey values represented in the current FactSales filter context.
+// Not the full DimStore roster, open-store count, or count of positive-sales stores.
+Store Keys Represented in FactSales =
+DISTINCTCOUNT(FactSales[StoreKey])
+
+// Home table: FactSales. Rename existing [Avg Sales per Store].
+Sales per Represented Store Key =
+DIVIDE([Total Sales], [Store Keys Represented in FactSales])
+
+// Home table: FactSales. Rename existing [Sales per Transaction].
+// This duplicates Sales per FactSales Row arithmetically. Retain the object until
+// all usages are checked; this package does not delete or consolidate measures.
+FactSales Revenue per Row =
+DIVIDE([Total Sales], [FactSales Row Count])
+
+// ============================================================================
+// B. OPTIONAL SCALE STANDARDIZATION: use only after inspecting visual overrides.
+// No observed formatting bug is asserted. Current Customer % and Sales % return
+// fractions; Total Sales % and Store % return the equivalent fractions * 100.
+// Their recovered model FormatString is null; visual formatting remains unknown.
+// Either keep legacy 0..100-style values with an ordinary numeric format and
+// clearly labeled percentage units, OR adopt these fraction measures with 0.0%.
+// Do not apply an automatic percent multiplier to the legacy *100 values.
+// Do not overwrite legacy measures until thresholds, tooltips, axes, exports,
+// conditional formatting, and all consumers have been reconciled.
+// Negative/offsetting sales can produce ratios outside the usual 0..1 range.
+// ============================================================================
+
+// Home table: FactSales. New optional measure. Format: 0.0%.
+// Equals original [Total Sales %] / 100 wherever the denominator is defined.
+FactSales Sales Share by State =
+DIVIDE(
+    SUM(FactSales[SalesAmount]),
+    CALCULATE(SUM(FactSales[SalesAmount]), ALL(DimGeography[StateProvinceName]))
+)
+
+// Home table: FactSales. New optional measure. Format: 0.0%.
+// Equals original [Store %] / 100. Retains all other geography/date filters.
+Represented Store Key Share by State =
+DIVIDE(
+    DISTINCTCOUNT(FactSales[StoreKey]),
+    CALCULATE(
+        DISTINCTCOUNT(FactSales[StoreKey]),
+        ALL(DimGeography[StateProvinceName])
+    )
+)
+
+// ============================================================================
+// C. CONDITIONAL ORDER DEFINITIONS. DO NOT APPLY TO THE CURRENT EXTRACTED MODEL.
+// SalesOrderNumber and SalesOrderLineNumber currently do not exist in that model.
+// First retain both through the M proposal and refresh only the working copy.
+// Gate: establish source order grain; SalesOrderNumber must identify exactly one
+// business order across customers/stores/time, with no blank or empty identifiers.
+// Repeated order numbers across lines are expected; repeated independent orders
+// under one number are not. Validate (order number, line number) grain separately.
+// Do not guess a composite order key or count OnlineSalesKey as an order ID.
+// Verify SalesAmount is additive at the loaded row grain, not repeated order total.
+// If any gate fails, keep Section A names and do not use the following formulas.
+// ============================================================================
+
+// Home table: FactOnlineSales. Conditional. Format: 0.
+Validated Online Order Count =
+DISTINCTCOUNT(FactOnlineSales[SalesOrderNumber])
+
+// Home table: FactOnlineSales. Conditional on the count above.
+// Counts orders with at least one fact row in current context. Product or date
+// filters can leave only part of an order's revenue. This is selected-row revenue
+// per represented order, not automatically full-basket AOV under all slicers.
+Online Sales per Represented Order =
+DIVIDE([Online Sales], [Validated Online Order Count])
+
+// Home table: FactOnlineSales. Conditional on validated customer/order keys.
+Online Orders per Purchasing Customer =
+DIVIDE([Validated Online Order Count], [Total Online Customers])
+
+// No FactSales distinct-order measure is supplied: no evidenced order ID exists.
+
+// ============================================================================
+// D. CONDITIONAL COMBINED-SALES SHARE. Separate proposal, never a rename of Online %.
+// Gate: prove fact revenue populations are disjoint, consistently valued in the
+// same currency and time scope, and legitimately additive without double counting.
+// Verify filter alignment: shared Date/Product/Store filters reach both facts,
+// but DimCustomer filters reach only FactOnlineSales in the recovered model.
+// Restrict the visual to comparable shared filters unless a separate population
+// design is approved. Do not silently remove or ignore asymmetric filters.
+// If FactSales already includes online sales, do not use this denominator.
+// ============================================================================
+
+// Home table: FactOnlineSales. Conditional new measure. Format: 0.0%.
+Online Share of Validated Combined Sales =
+DIVIDE([Online Sales], [Online Sales] + [Total Sales])
+
+// ============================================================================
+// E. CONDITIONAL AGE VISUAL MEASURES: choose a policy, not both by default.
+// Use only after the corresponding new M columns exist. Remove the old Agegroup
+// axis/slicers/filters from these visuals; keep raw age columns out of filter UI.
+// Each denominator removes only its chosen age-band filter, retaining other scope.
+// Existing Customer % / Sales % remove the OLD DimCustomer[Agegroup] filter and
+// must not simply be reused with a different age-band column.
+// ============================================================================
+
+// Fixed-date alternative: home FactOnlineSales. Format each as 0.0%.
+Online Customer Share by Fixed-Date Age =
+DIVIDE(
+    [Total Online Customers],
+    CALCULATE(
+        [Total Online Customers],
+        REMOVEFILTERS(DimCustomer[AgeGroupAsOfDate])
+    )
+)
+
+Online Sales Share by Fixed-Date Age =
+DIVIDE(
+    [Online Sales],
+    CALCULATE([Online Sales], REMOVEFILTERS(DimCustomer[AgeGroupAsOfDate]))
+)
+
+// Purchase-age alternative: home FactOnlineSales. Format each as 0.0%.
+// A customer can appear in multiple purchase-age bands across a long period.
+// Customer reach percentages can total more than 100%; this is NOT a partition
+// of unique customers and must not be labeled customer composition.
+Online Customer Reach by Purchase Age =
+DIVIDE(
+    [Total Online Customers],
+    CALCULATE(
+        [Total Online Customers],
+        REMOVEFILTERS(FactOnlineSales[AgeGroupAtPurchase])
+    )
+)
+
+Online Sales Share by Purchase Age =
+DIVIDE(
+    [Online Sales],
+    CALCULATE([Online Sales], REMOVEFILTERS(FactOnlineSales[AgeGroupAtPurchase]))
+)

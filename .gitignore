@@ -1,0 +1,22 @@
+# Allowlist: only documentation and example code are publishable.
+/*
+!/.gitignore
+!/README.md
+!/docs/
+!/examples/
+/docs/*
+!/docs/*.md
+/examples/*
+!/examples/*.dax
+!/examples/*.pq
+*.pbix
+*.pbit
+*.csv
+*.xlsx
+*.pptx
+*.docx
+*.pdf
+*.png
+.DS_Store
+.env*
+private-review/

@@ -2,6 +2,8 @@
 
 A Power BI project analyzing retail sales by product, online customer segment, and geography.
 
+Read the [recruiter case study](docs/recruiter-case-study.md) for the business questions, dashboard design, semantic model, and validation limitations.
+
 This was **university coursework**. It uses an **instructor-provided Contoso dataset**. My instructor gave permission to showcase the project publicly; that is not permission to redistribute the dataset or the Power BI file, so neither is included.
 
 > **Status:** documentation of an existing dashboard. Reported values are **unverified**, the source data and the report file are not included, and recommendations are hypotheses rather than measured outcomes. Corrections listed here are **proposed, not implemented**.
